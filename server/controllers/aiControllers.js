@@ -6,7 +6,6 @@ import { response } from "express";
 import {v2 as cloudinary} from 'cloudinary'
 import axios from "axios";
 import FormData from "form-data";
-import { PDFParse } from 'pdf-parse';
 import connectCloudinary from "../configs/cloudinary.js";
 
 // Lazy initialize Gemini AI to avoid crashes on module load
@@ -258,14 +257,20 @@ export const resumeReview = async (req, res)=>{
             return res.status(400).json({success: false, message: "File size exceeds 5MB limit."})
         }
 
-        // Use buffer directly for serverless compatibility (no file path in serverless)
-        const parser = new PDFParse(resume.buffer);
-        const pdfData = await parser.parse();
+        // Use Gemini's multimodal capability to directly analyze the PDF
+        // This avoids needing PDF parsing libraries with native dependencies
+        const model = getGeminiModel();
 
-        const prompt = `Review the resume and provide feedback on clarity, structure, and professionalism. Resume Content:\n\n${pdfData.text}`
+        const imagePart = {
+            inlineData: {
+                data: resume.buffer.toString('base64'),
+                mimeType: resume.mimetype
+            }
+        };
 
-        // Use Gemini to review resume
-        const result = await getGeminiModel().generateContent(prompt);
+        const prompt = 'Review this resume and provide detailed feedback on clarity, structure, and professionalism. Analyze the content, formatting, skills, experience, and overall presentation.';
+
+        const result = await model.generateContent([prompt, imagePart]);
         const content = result.response.text();
 
      await sql`INSERT INTO creations (user_id, prompt, content, type) VALUES (${userId}, 'Review the resume and provide feedback on clarity, structure, and professionalism.', ${content}, 'resume-review')`;

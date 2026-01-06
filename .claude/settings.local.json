@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nReplace pdf-parse with Gemini multimodal PDF analysis\n\n- Removed pdf-parse and canvas dependencies \\(native deps don''t work in serverless\\)\n- Use Gemini''s multimodal capability to directly analyze PDF files\n- Pass PDF as base64 inline data to Gemini API\n- Fully serverless-compatible solution with no native dependencies\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push)"
     ]
   }
 }
