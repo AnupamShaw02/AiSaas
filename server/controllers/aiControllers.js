@@ -6,7 +6,7 @@ import { response } from "express";
 import {v2 as cloudinary} from 'cloudinary'
 import axios from "axios";
 import FormData from "form-data";
-import pdfParse from 'pdf-parse';
+import { PDFParse } from 'pdf-parse';
 import connectCloudinary from "../configs/cloudinary.js";
 
 // Lazy initialize Gemini AI to avoid crashes on module load
@@ -259,7 +259,8 @@ export const resumeReview = async (req, res)=>{
         }
 
         // Use buffer directly for serverless compatibility (no file path in serverless)
-        const pdfData = await pdfParse(resume.buffer);
+        const parser = new PDFParse(resume.buffer);
+        const pdfData = await parser.parse();
 
         const prompt = `Review the resume and provide feedback on clarity, structure, and professionalism. Resume Content:\n\n${pdfData.text}`
 
