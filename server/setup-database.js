@@ -32,6 +32,19 @@ async function setupDatabase() {
         `;
         console.log('✅ Creations table created');
 
+        // Create likes table
+        await sql`
+            CREATE TABLE IF NOT EXISTS likes (
+                id SERIAL PRIMARY KEY,
+                user_id VARCHAR(255) NOT NULL,
+                creation_id INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, creation_id),
+                FOREIGN KEY (creation_id) REFERENCES creations(id) ON DELETE CASCADE
+            )
+        `;
+        console.log('✅ Likes table created');
+
         console.log('\n🎉 Database setup complete!');
         process.exit(0);
     } catch (error) {

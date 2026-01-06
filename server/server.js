@@ -20,18 +20,11 @@ app.use(clerkMiddleware())
 
 app.get('/', (req, res) => res.send('Server is running'))
 
-// Public routes (no auth required)
-app.get('/api/ai/published-images', (req, res, next) => {
-    // Import and call the controller directly for this public route
-    import('./controllers/aiControllers.js').then(module => {
-        module.getPublishedImages(req, res)
-    }).catch(next)
-})
+// Routes with their own auth middleware
+app.use('/api/ai', aiRouter)
 
 // Protected routes (auth required)
 app.use(requireAuth())
-
-app.use('/api/ai', aiRouter)
 app.use('/api/user', userRouter)
 
 const PORT = process.env.PORT  || 3000;

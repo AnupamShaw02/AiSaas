@@ -295,11 +295,30 @@ export const resumeReview = async (req, res)=>{
 export const getPublishedImages = async (req, res) => {
     try {
         const publishedImages = await sql`
-            SELECT id, user_id, prompt, content, created_at
-            FROM creations
-            WHERE publish = true AND type = 'image'
-            ORDER BY created_at DESC
+            SELECT
+                c.id,
+                c.user_id,
+                c.prompt,
+                c.content,
+                c.created_at,
+                COUNT(l.id) as like_count
+            FROM creations c
+            LEFT JOIN likes l ON c.id = l.creation_id
+            WHERE c.publish = true AND c.type = 'image'
+            GROUP BY c.id, c.user_id, c.prompt, c.content, c.created_at
+            ORDER BY c.created_at DESC
         `;
+
+        // Get current user's liked images if authenticated
+        let userLikes = [];
+        if (req.userId) {
+            const likes = await sql`
+                SELECT creation_id
+                FROM likes
+                WHERE user_id = ${req.userId}
+            `;
+            userLikes = likes.map(like => like.creation_id);
+        }
 
         // Get user information from Clerk for each image
         const imagesWithUserInfo = await Promise.all(
@@ -311,6 +330,8 @@ export const getPublishedImages = async (req, res) => {
                         imageUrl: image.content,
                         prompt: image.prompt,
                         createdAt: image.created_at,
+                        likeCount: parseInt(image.like_count) || 0,
+                        isLiked: userLikes.includes(image.id),
                         user: {
                             id: user.id,
                             name: user.firstName && user.lastName
@@ -326,6 +347,8 @@ export const getPublishedImages = async (req, res) => {
                         imageUrl: image.content,
                         prompt: image.prompt,
                         createdAt: image.created_at,
+                        likeCount: parseInt(image.like_count) || 0,
+                        isLiked: userLikes.includes(image.id),
                         user: {
                             id: image.user_id,
                             name: 'Anonymous',
@@ -340,6 +363,54 @@ export const getPublishedImages = async (req, res) => {
 
     } catch (error) {
         console.error('getPublishedImages error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+}
+
+export const toggleLike = async (req, res) => {
+    try {
+        const userId = req.userId;
+        const { creationId } = req.body;
+
+        if (!creationId) {
+            return res.status(400).json({ success: false, message: 'Creation ID is required' });
+        }
+
+        // Check if the user has already liked this creation
+        const existingLike = await sql`
+            SELECT id FROM likes
+            WHERE user_id = ${userId} AND creation_id = ${creationId}
+        `;
+
+        if (existingLike.length > 0) {
+            // Unlike: Remove the like
+            await sql`
+                DELETE FROM likes
+                WHERE user_id = ${userId} AND creation_id = ${creationId}
+            `;
+        } else {
+            // Like: Add the like
+            await sql`
+                INSERT INTO likes (user_id, creation_id)
+                VALUES (${userId}, ${creationId})
+            `;
+        }
+
+        // Get updated like count
+        const likeCount = await sql`
+            SELECT COUNT(*) as count
+            FROM likes
+            WHERE creation_id = ${creationId}
+        `;
+
+        res.json({
+            success: true,
+            isLiked: existingLike.length === 0,
+            likeCount: parseInt(likeCount[0].count)
+        });
+
+    } catch (error) {
+        console.error('toggleLike error:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 }

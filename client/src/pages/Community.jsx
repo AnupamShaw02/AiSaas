@@ -2,21 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { Heart, Download, Share2 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useAuth } from '@clerk/clerk-react';
 
 axios.defaults.baseURL = import.meta.env.VITE_BASE_URL
 
 const Community = () => {
-  const [likedItems, setLikedItems] = useState({});
   const [creations, setCreations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { getToken } = useAuth();
 
   useEffect(() => {
     fetchPublishedImages();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchPublishedImages = async () => {
     try {
-      const { data } = await axios.get('/api/ai/published-images');
+      const token = await getToken();
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      console.log('Fetching images with auth:', !!token);
+      const { data } = await axios.get('/api/ai/published-images', { headers });
+      console.log('Received images:', data.images?.length, 'images');
       if (data.success) {
         setCreations(data.images);
       }
@@ -28,11 +34,72 @@ const Community = () => {
     }
   };
 
-  const handleLike = (id) => {
-    setLikedItems(prev => ({
-      ...prev,
-      [id]: !prev[id]
-    }));
+  const handleLike = async (id) => {
+    try {
+      const token = await getToken();
+      console.log('Toggling like for ID:', id, 'with auth:', !!token);
+      if (!token) {
+        toast.error('Please sign in to like images');
+        return;
+      }
+
+      // Optimistic update - update UI immediately
+      const currentCreation = creations.find(c => c.id === id);
+      console.log('Current creation:', currentCreation);
+      const optimisticIsLiked = !currentCreation.isLiked;
+      const optimisticCount = currentCreation.isLiked
+        ? currentCreation.likeCount - 1
+        : currentCreation.likeCount + 1;
+
+      setCreations(prevCreations =>
+        prevCreations.map(creation =>
+          creation.id === id
+            ? { ...creation, isLiked: optimisticIsLiked, likeCount: optimisticCount }
+            : creation
+        )
+      );
+
+      // Send request to server
+      const { data } = await axios.post('/api/ai/toggle-like', { creationId: id }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      console.log('Server response:', data);
+
+      // Update with actual server response
+      if (data.success) {
+        setCreations(prevCreations =>
+          prevCreations.map(creation =>
+            creation.id === id
+              ? { ...creation, isLiked: data.isLiked, likeCount: data.likeCount }
+              : creation
+          )
+        );
+      } else {
+        // Revert on failure
+        setCreations(prevCreations =>
+          prevCreations.map(creation =>
+            creation.id === id
+              ? { ...creation, isLiked: currentCreation.isLiked, likeCount: currentCreation.likeCount }
+              : creation
+          )
+        );
+        toast.error('Failed to update like');
+      }
+    } catch (error) {
+      console.error('Error toggling like:', error);
+      console.error('Error response:', error.response?.data);
+      // Revert optimistic update on error
+      const currentCreation = creations.find(c => c.id === id);
+      setCreations(prevCreations =>
+        prevCreations.map(creation =>
+          creation.id === id
+            ? { ...creation, isLiked: currentCreation.isLiked, likeCount: currentCreation.likeCount }
+            : creation
+        )
+      );
+      toast.error(error.response?.data?.message || 'Failed to update like');
+    }
   };
 
   const handleDownload = async (imageUrl, id) => {
@@ -146,15 +213,15 @@ const Community = () => {
                     >
                       <Heart
                         className={`w-5 h-5 transition-colors ${
-                          likedItems[item.id]
+                          item.isLiked
                             ? 'fill-red-500 text-red-500'
                             : 'text-gray-400'
                         }`}
                       />
                       <span className={`${
-                        likedItems[item.id] ? 'text-red-500' : 'text-gray-500'
+                        item.isLiked ? 'text-red-500' : 'text-gray-500'
                       }`}>
-                        {likedItems[item.id] ? 1 : 0}
+                        {item.likeCount || 0}
                       </span>
                     </button>
                   </div>

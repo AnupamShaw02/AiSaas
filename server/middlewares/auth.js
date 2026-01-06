@@ -1,9 +1,9 @@
 import { clerkClient } from "@clerk/express";
 
 //middleware to check if user is authenticated
-export const auth = async (req, res, next) => {
+export const requireAuth = async (req, res, next) => {
     try {
-        const { userId } = await req.auth();
+        const { userId } = req.auth();
 
         if (!userId) {
             return res.status(401).json({ success: false, message: "Unauthorized" });
@@ -13,6 +13,18 @@ export const auth = async (req, res, next) => {
         next();
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// Optional auth middleware - doesn't block if not authenticated
+export const optionalAuth = async (req, res, next) => {
+    try {
+        const { userId } = req.auth();
+        req.userId = userId || null;
+        next();
+    } catch (error) {
+        req.userId = null;
+        next();
     }
 };
 
