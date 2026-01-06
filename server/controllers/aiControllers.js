@@ -7,10 +7,17 @@ import {v2 as cloudinary} from 'cloudinary'
 import axios from "axios";
 import FormData from "form-data";
 import { PDFParse } from 'pdf-parse';
+import connectCloudinary from "../configs/cloudinary.js";
 
-// Initialize Gemini AI
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+// Lazy initialize Gemini AI to avoid crashes on module load
+let model = null;
+const getGeminiModel = () => {
+    if (!model) {
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    }
+    return model;
+};
 
 export const generateArticle = async (req, res)=>{
     try{
@@ -24,7 +31,7 @@ export const generateArticle = async (req, res)=>{
         }
 
         // Use Gemini to generate article
-        const result = await model.generateContent(prompt);
+        const result = await getGeminiModel().generateContent(prompt);
         const content = result.response.text();
 
      await sql`INSERT INTO articles (user_id, prompt, content, type) VALUES (${userId}, ${prompt}, ${content}, 'article')`;
@@ -56,6 +63,8 @@ export const generateArticle = async (req, res)=>{
 
 export const generateImage = async (req, res)=>{
     try{
+        connectCloudinary(); // Ensure Cloudinary is configured
+
         const { userId } = req.auth();
         const {prompt, publish} = req.body;
         const plan = req.plan;
@@ -113,7 +122,7 @@ export const generateBlogTitle = async (req, res) => {
 
         // Use Gemini to generate blog titles
         const enhancedPrompt = `You are a creative blog title generator. ${prompt} Generate 5 catchy, SEO-friendly blog titles. Return only the titles, numbered 1-5.`;
-        const result = await model.generateContent(enhancedPrompt);
+        const result = await getGeminiModel().generateContent(enhancedPrompt);
         const titles = result.response.text();
 
         await sql`INSERT INTO creations (user_id, prompt, content, type, publish) VALUES (${userId}, ${prompt}, ${titles}, 'blog-title', false)`;
@@ -147,6 +156,8 @@ export const generateBlogTitle = async (req, res) => {
 
 export const removeImageBackground = async (req, res)=>{
     try{
+        connectCloudinary(); // Ensure Cloudinary is configured
+
         const { userId } = req.auth();
         const image= req.file;
 
@@ -190,6 +201,8 @@ export const removeImageBackground = async (req, res)=>{
 
 export const removeImageObject = async (req, res)=>{
     try{
+        connectCloudinary(); // Ensure Cloudinary is configured
+
         const { userId } = req.auth();
         const { object } = req.body;
         const image = req.file;
@@ -252,7 +265,7 @@ export const resumeReview = async (req, res)=>{
         const prompt = `Review the resume and provide feedback on clarity, structure, and professionalism. Resume Content:\n\n${pdfData.text}`
 
         // Use Gemini to review resume
-        const result = await model.generateContent(prompt);
+        const result = await getGeminiModel().generateContent(prompt);
         const content = result.response.text();
 
      await sql`INSERT INTO creations (user_id, prompt, content, type) VALUES (${userId}, 'Review the resume and provide feedback on clarity, structure, and professionalism.', ${content}, 'resume-review')`;
