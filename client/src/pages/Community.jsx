@@ -1,60 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Heart, Download, Share2 } from 'lucide-react';
+import axios from 'axios';
+import toast from 'react-hot-toast';
+
+axios.defaults.baseURL = import.meta.env.VITE_BASE_URL
 
 const Community = () => {
   const [likedItems, setLikedItems] = useState({});
+  const [creations, setCreations] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Sample creations data
-  const creations = [
-    {
-      id: 1,
-      image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&h=600&fit=crop',
-      prompt: 'Generate an image of A Boy is on Boat, and fishing in the style Anime style.',
-      likes: 2,
-      user: 'User123',
-      date: '2024-10-28'
-    },
-    {
-      id: 2,
-      image: 'https://images.unsplash.com/photo-1682687220742-aba13b6e50ba?w=800&h=600&fit=crop',
-      prompt: 'Boy riding bicycle through sunny tree-lined street in anime style.',
-      likes: 2,
-      user: 'ArtLover',
-      date: '2024-10-27'
-    },
-    {
-      id: 3,
-      image: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=800&h=600&fit=crop',
-      prompt: 'Peaceful mountain landscape with lake reflection at sunset.',
-      likes: 5,
-      user: 'NatureArt',
-      date: '2024-10-26'
-    },
-    {
-      id: 4,
-      image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop',
-      prompt: 'Serene mountain view with cloudy sky in realistic style.',
-      likes: 3,
-      user: 'Dreamer',
-      date: '2024-10-25'
-    },
-    {
-      id: 5,
-      image: 'https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=800&h=600&fit=crop',
-      prompt: 'Vibrant sunset over ocean waves in fantasy style.',
-      likes: 7,
-      user: 'OceanVibes',
-      date: '2024-10-24'
-    },
-    {
-      id: 6,
-      image: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800&h=600&fit=crop',
-      prompt: 'Forest path with morning sunlight streaming through trees.',
-      likes: 4,
-      user: 'ForestWalk',
-      date: '2024-10-23'
+  useEffect(() => {
+    fetchPublishedImages();
+  }, []);
+
+  const fetchPublishedImages = async () => {
+    try {
+      const { data } = await axios.get('/api/ai/published-images');
+      if (data.success) {
+        setCreations(data.images);
+      }
+    } catch (error) {
+      console.error('Error fetching published images:', error);
+      toast.error('Failed to load community images');
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
 
   const handleLike = (id) => {
     setLikedItems(prev => ({
@@ -63,67 +35,134 @@ const Community = () => {
     }));
   };
 
+  const handleDownload = async (imageUrl, id) => {
+    try {
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `creation-${id}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      toast.success('Image downloaded!');
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error('Failed to download image');
+    }
+  };
+
+  const handleShare = async (imageUrl, prompt) => {
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: 'AI Generated Image',
+          text: prompt,
+          url: imageUrl
+        });
+      } else {
+        await navigator.clipboard.writeText(imageUrl);
+        toast.success('Image link copied to clipboard!');
+      }
+    } catch (error) {
+      console.error('Share error:', error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className='h-full flex items-center justify-center bg-[#F4F7FB]'>
+        <div className='text-center'>
+          <div className='w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4'></div>
+          <p className='text-gray-600'>Loading community images...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className='h-full overflow-y-scroll bg-[#F4F7FB] p-6'>
       <div className='max-w-7xl mx-auto'>
-        <h1 className='text-2xl font-semibold text-slate-800 mb-6'>Creations</h1>
-        
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
-          {creations.map((item) => (
-            <div key={item.id} className='bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow duration-300'>
-              {/* Image */}
-              <div className='relative group cursor-pointer'>
-                <img 
-                  src={item.image} 
-                  alt={item.prompt}
-                  className='w-full h-64 object-cover'
-                />
-                {/* Hover overlay */}
-                <div className='absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-300 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100'>
-                  <button className='bg-white p-2 rounded-full hover:bg-gray-100 transition'>
-                    <Download className='w-5 h-5 text-gray-700' />
-                  </button>
-                  <button className='bg-white p-2 rounded-full hover:bg-gray-100 transition'>
-                    <Share2 className='w-5 h-5 text-gray-700' />
-                  </button>
-                </div>
-              </div>
+        <h1 className='text-2xl font-semibold text-slate-800 mb-6'>Community Creations</h1>
 
-              {/* Content */}
-              <div className='p-4'>
-                <p className='text-sm text-gray-700 mb-3 line-clamp-2'>
-                  {item.prompt}
-                </p>
-                
-                <div className='flex items-center justify-between'>
-                  <div className='flex items-center gap-2 text-gray-500 text-xs'>
-                    <span>{item.user}</span>
-                    <span>•</span>
-                    <span>{new Date(item.date).toLocaleDateString()}</span>
+        {creations.length === 0 ? (
+          <div className='text-center py-12'>
+            <p className='text-gray-500 text-lg'>No published images yet.</p>
+            <p className='text-gray-400 text-sm mt-2'>Be the first to share your creation!</p>
+          </div>
+        ) : (
+          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
+            {creations.map((item) => (
+              <div key={item.id} className='bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow duration-300'>
+                {/* Image */}
+                <div className='relative group cursor-pointer'>
+                  <img
+                    src={item.imageUrl}
+                    alt={item.prompt}
+                    className='w-full h-64 object-cover'
+                  />
+                  {/* Hover overlay */}
+                  <div className='absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-300 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100'>
+                    <button
+                      onClick={() => handleDownload(item.imageUrl, item.id)}
+                      className='bg-white p-2 rounded-full hover:bg-gray-100 transition'
+                    >
+                      <Download className='w-5 h-5 text-gray-700' />
+                    </button>
+                    <button
+                      onClick={() => handleShare(item.imageUrl, item.prompt)}
+                      className='bg-white p-2 rounded-full hover:bg-gray-100 transition'
+                    >
+                      <Share2 className='w-5 h-5 text-gray-700' />
+                    </button>
                   </div>
-                  
-                  <button 
-                    onClick={() => handleLike(item.id)}
-                    className='flex items-center gap-1 text-sm'
-                  >
-                    <Heart 
-                      className={`w-5 h-5 transition-colors ${
-                        likedItems[item.id] 
-                          ? 'fill-red-500 text-red-500' 
-                          : 'text-gray-400'
-                      }`}
-                    />
-                    <span className={`${
-                      likedItems[item.id] ? 'text-red-500' : 'text-gray-500'
-                    }`}>
-                      {item.likes + (likedItems[item.id] ? 1 : 0)}
-                    </span>
-                  </button>
+                </div>
+
+                {/* Content */}
+                <div className='p-4'>
+                  <p className='text-sm text-gray-700 mb-3 line-clamp-2'>
+                    {item.prompt}
+                  </p>
+
+                  <div className='flex items-center justify-between'>
+                    <div className='flex items-center gap-2 text-gray-500 text-xs'>
+                      {item.user.avatar && (
+                        <img
+                          src={item.user.avatar}
+                          alt={item.user.name}
+                          className='w-5 h-5 rounded-full'
+                        />
+                      )}
+                      <span>{item.user.name}</span>
+                      <span>•</span>
+                      <span>{new Date(item.createdAt).toLocaleDateString()}</span>
+                    </div>
+
+                    <button
+                      onClick={() => handleLike(item.id)}
+                      className='flex items-center gap-1 text-sm'
+                    >
+                      <Heart
+                        className={`w-5 h-5 transition-colors ${
+                          likedItems[item.id]
+                            ? 'fill-red-500 text-red-500'
+                            : 'text-gray-400'
+                        }`}
+                      />
+                      <span className={`${
+                        likedItems[item.id] ? 'text-red-500' : 'text-gray-500'
+                      }`}>
+                        {likedItems[item.id] ? 1 : 0}
+                      </span>
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

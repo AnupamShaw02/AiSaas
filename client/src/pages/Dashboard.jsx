@@ -1,14 +1,38 @@
 import React, { useEffect, useState } from 'react'
-import { dummyCreationData } from '../assets/assets'
 import { Gem, Sparkles } from 'lucide-react'
 import CreationItem from '../components/CreationItem'
+import axios from 'axios'
+import { useAuth } from '@clerk/clerk-react'
+import toast from 'react-hot-toast'
+
+axios.defaults.baseURL = import.meta.env.VITE_BASE_URL
 
 const Dashboard = () => {
 
   const [creation, setCreations] = useState([])
+  const [loading, setLoading] = useState(true)
+  const { getToken } = useAuth()
 
   const getDashboardData = async () => {
-    setCreations(dummyCreationData)
+    try {
+      setLoading(true)
+      const token = await getToken()
+
+      const { data } = await axios.get('/api/ai/user-creations', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+
+      if (data.success) {
+        setCreations(data.creations)
+      } else {
+        toast.error(data.message || 'Failed to load creations')
+      }
+    } catch (error) {
+      console.error('Error fetching user creations:', error)
+      toast.error(error.response?.data?.message || 'Failed to load your creations')
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(()=>{
@@ -42,11 +66,20 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <div className='space-y-3'>
+        <div className='space-y-3 w-full'>
           <p className='mt-6 mb-4'>Recent Creations</p>
-          {
+          {loading ? (
+            <div className='text-center py-8'>
+              <div className='w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto'></div>
+              <p className='text-gray-500 mt-3'>Loading your creations...</p>
+            </div>
+          ) : creation.length === 0 ? (
+            <div className='text-center py-8 text-gray-500'>
+              <p>No creations yet. Start creating something amazing!</p>
+            </div>
+          ) : (
             creation.map((item)=> <CreationItem key={item.id} item={item}/>)
-          }
+          )}
         </div>
 
       </div>
