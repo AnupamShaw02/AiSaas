@@ -6,7 +6,6 @@ import { response } from "express";
 import {v2 as cloudinary} from 'cloudinary'
 import axios from "axios";
 import FormData from "form-data";
-import fs from 'fs';
 import { PDFParse } from 'pdf-parse';
 
 // Initialize Gemini AI
@@ -156,7 +155,10 @@ export const removeImageBackground = async (req, res)=>{
         if(plan !== 'premium' ){
             return res.json({success: false, message: "Upgrade to premium."})
         }
-        const {secure_url} = await cloudinary.uploader.upload(image.path, {
+
+        // Convert buffer to base64 for serverless compatibility
+        const base64Image = `data:${image.mimetype};base64,${image.buffer.toString('base64')}`;
+        const {secure_url} = await cloudinary.uploader.upload(base64Image, {
             transformation: [
                 {
                     effect: 'background_removal',
@@ -189,8 +191,8 @@ export const removeImageBackground = async (req, res)=>{
 export const removeImageObject = async (req, res)=>{
     try{
         const { userId } = req.auth();
-        const { object } = req.body();
-        const {image}= req.file;
+        const { object } = req.body;
+        const image = req.file;
 
         const plan = req.plan;
 
@@ -198,7 +200,9 @@ export const removeImageObject = async (req, res)=>{
             return res.json({success: false, message: "Upgrade to premium."})
         }
 
-        const {public_id} = await cloudinary.uploader.upload(image.path)
+        // Convert buffer to base64 for serverless compatibility
+        const base64Image = `data:${image.mimetype};base64,${image.buffer.toString('base64')}`;
+        const {public_id} = await cloudinary.uploader.upload(base64Image)
 
         const image_url = cloudinary.url(public_id,{
             transformation: [{effect: `gen_remove:${object}`}],
@@ -241,8 +245,8 @@ export const resumeReview = async (req, res)=>{
             return res.status(400).json({success: false, message: "File size exceeds 5MB limit."})
         }
 
-        const databuffer = fs.readFileSync(resume.path)
-        const parser = new PDFParse(databuffer);
+        // Use buffer directly for serverless compatibility (no file path in serverless)
+        const parser = new PDFParse(resume.buffer);
         const pdfData = await parser.parse();
 
         const prompt = `Review the resume and provide feedback on clarity, structure, and professionalism. Resume Content:\n\n${pdfData.text}`

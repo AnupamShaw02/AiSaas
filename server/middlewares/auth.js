@@ -25,19 +25,22 @@ export const requirePremiumPlan = async (req, res, next) => {
 
         const user = await clerkClient.users.getUser(userId);
 
-        if (!hasPremiumPlan && user.privateMetadata.free_usage) {
-            req.free_usage = user.privateMetadata.free_usage
+        if (!hasPremiumPlan) {
+            // Check if free_usage exists and is a number, otherwise default to 0
+            const currentFreeUsage = typeof user.privateMetadata?.free_usage === 'number'
+                ? user.privateMetadata.free_usage
+                : 0;
+            req.free_usage = currentFreeUsage;
         } else {
-            await clerkClient.users.updateUserMetadata(userId, { privateMetadata: { 
-                free_usage: 0
-             } })
-             req.free_usage =0;
+            // Premium users don't track free usage
+            req.free_usage = 0;
         }
+
         req.plan = hasPremiumPlan ? 'premium' : 'free';
         next();
 
     }catch (error) {
         console.error('requirePremiumPlan error:', error);
         res.status(500).json({ success: false, message: error.message });
-}
+    }
 }
